@@ -21,8 +21,7 @@ module.exports = {
       },
       gas: 30000000,
       gasPrice: 98000000000,
-      network_id: 5,
-      from: "0xb420E28552E4c90E2F862EC659685581DBa82AA8"
+      network_id: 5
     },
     // main: {
     //   provider: function() {
