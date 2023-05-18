@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Fuzzy+Bubbles:wght@700&display=swap');
+
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body{
+    font-family: 'Fuzzy Bubbles';
+    color: #ff9900ff;
+}
+
+.home-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    text-align: center;
+    justify-content: space-evenly;
+}
+
+.home-item {
+    width: 100px;
+    height: 75px;
+    background: whitesmoke;
+    color: #ff9900ff;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.image-logo {
+    width: 25%;
+}

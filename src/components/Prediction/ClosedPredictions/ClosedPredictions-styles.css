@@ -1,0 +1,54 @@
+.closed-market-card, h6 {
+    margin: 0;
+}
+
+.closed-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 20px;
+
+
+    justify-content: space-evenly;
+}
+
+.closed-market-card {
+    width: 250px;
+    height: 325px;
+    margin: 20px;
+    padding: 5px;
+    padding-top: 20px;
+    color: #0096FF;
+    background: whitesmoke;
+    border: 2px solid #ff9900ff;
+    border-radius: 25px;
+    text-align: center;
+    font-size: 12px;
+}
+
+
+.closed-market-columns {
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+}
+
+.row-for-columns {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+
+.closed-form {
+    /* width: 20%; */
+    /* justify-items: center; */
+}
+
+.user-info {
+    margin: 5px;
+    padding: 2px;
+    font-size: 10px;
+    background: whitesmoke;
+    border: 2px solid #ff9900ff;
+    border-radius: 10px;
+}

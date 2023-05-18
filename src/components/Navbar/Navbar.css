@@ -1,0 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Fuzzy+Bubbles:wght@700&display=swap');
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body{
+    font-family: 'Fuzzy Bubbles', cursive;
+    color: #ff9900ff;
+}
+
+
+ul {
+    list-style-type: none;
+}
+
+.container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 30px;
+}
+
+.navbar {
+    background: whitesmoke;
+    height: auto;
+}
+
+.navbar .logo {
+    font-size:medium;
+    /* font-weight: bold; */
+
+}
+
+
+.navbar a {
+    /* color: blue; */
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.navbar a:hover {
+    color: lightblue;
+}
+
+/* .navbar.container {
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap; 
+    justify-content: space-around;
+    align-items: center;
+} */
+
+.nav-account{
+    width: 250px;
+    height: 30px;
+    margin: auto;
+
+    /* height: 200px; */
+    background: whitesmoke;
+    /* color: #ff9900ff; */
+    padding-top: 15px;
+    font-size: 10px;
+
+
+    /* display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center; */
+
+    border: 2px solid #ff9900ff;
+    border-radius: 25px;
+}
+
+.navbar ul {
+    display: flex;
+    justify-content: space-around;
+
+}
+
+.navbar ul li {
+    margin-left: 20px;
+}
+
+.header ul {
+    display: flex;
+    align-items: center;
+    /* justify-content: center; */
+    justify-content: space-around;
+
+}
+
+.header img {
+    height: 25px;
+}
+
+.header {
+    color: #0096FF;
+    margin: 0;
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.flex-item {
+    width: 100px;
+    height: 75px;
+    background: whitesmoke;
+    color: #ff9900ff;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}

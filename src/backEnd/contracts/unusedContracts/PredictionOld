@@ -1,0 +1,432 @@
+// SPDX-License-Identifier: DO NOT COPY WITH OUT WRITTEN CONSENT.
+
+pragma solidity 0.8.7;
+
+
+import "@openzeppelin/contracts/utils/Counters.sol";
+
+
+contract PredictionOld {
+    using Counters for Counters.Counter;
+
+
+    address payable public admin;
+
+    Counters.Counter public totalPredictionMarkets;
+    Counters.Counter public totalActivePredictionMarkets;
+    Counters.Counter public totalClosedPredictionMarkets;
+    Counters.Counter public totalSettledPredictionMarkets;
+    Counters.Counter public totalEmergencyWithdrawPredictionMarkets;
+
+    // basis points
+    uint256 public predictionMarketFee;
+    uint256 public userWithdrawADMINFee;
+    uint256 public userWithdrawPOOLFee;
+    uint256 public minPredictionValue;
+
+    uint256 public totalPredictionVolume;
+
+    enum Status{
+        Active,
+        Closed,
+        Settled,
+        EmergencyWithdraw
+    }
+    enum Settlement{
+        Yes,
+        No,
+        Active,
+        EmergencyWithdraw
+    }
+
+    struct UserPrediction{
+        address payable predictor;
+        // uint256 predictorID;
+        uint256 predictionAmount;
+        uint256 payoutAmount;
+        bool prediction;
+        bool hasPredicted;
+    }
+
+    struct PredictionData{
+        string predictionPhrase;
+        uint256 id;
+        uint256 startBlock;
+        uint256 endBlock;
+        uint256 yesUserNumber;
+        uint256 noUserNumber;
+        uint256 totalUserNumber;
+        uint256 yesBalance;
+        uint256 noBalance;
+        uint256 totalBalance;
+        address[] yesAddresses;
+        address[] noAddresses;
+        Status status;
+        Settlement settlement;
+    }
+
+    event PredictionMarketActive(
+        string phrase,
+        uint256 id
+    );
+
+    event PredictionMade(
+        address predictor,
+        uint256 id,
+        uint256 predictionValue,
+        uint256 predictionTotalValue,
+        uint256 predictionsMade,
+        uint256 totalPredictionVolume
+    );
+
+    event PredictionClosed(
+        uint256 id,
+        uint256 totalUserNumber,
+        uint256 totalBalance
+    );
+
+    event PredictionSettled(
+        uint256 id,
+        uint256 totalUserNumber,
+        uint256 totalBalance,
+        Settlement Settlement
+    );
+
+    event EmergencyWithdrawal(
+        uint256 id,
+        uint256 totalUsersNumber,
+        uint256 totalBalance
+    );
+
+    event UserWithdrawal(
+        uint256 id,
+        uint256 totalBalance
+    );
+
+
+    //Prediction ID -> user address -> user prediction data set
+    mapping(uint256 => mapping(address => UserPrediction)) public userPredictions;
+
+    // Prediction ID -> prediction data
+    mapping(uint256 => PredictionData) public predictions;
+
+    constructor() {
+        admin = payable(msg.sender);
+        predictionMarketFee = 250;
+        userWithdrawADMINFee = 700;
+        userWithdrawPOOLFee = 500;
+        minPredictionValue = 10000000000000000;
+    }
+
+    modifier onlyAdmin {
+        require(msg.sender == admin, "you must be the admin");
+        _;
+    }
+
+    function createPredictionMarket(string memory _predictionPhrase, uint256 _activeSeconds) public onlyAdmin {
+        // require(bytes32(_predictionPhrase) > 0, "must enter vaid prediction phrase.");
+        totalPredictionMarkets.increment();
+        totalActivePredictionMarkets.increment();
+        uint256 predictionMarketID = totalPredictionMarkets.current();
+        address[] memory emptyAdressList;
+
+        predictions[predictionMarketID] = PredictionData(
+                _predictionPhrase,
+                predictionMarketID, block.timestamp, block.timestamp + _activeSeconds,
+                0, 0, 0, 0, 0, 0, emptyAdressList, emptyAdressList, Status.Active, Settlement.Active
+            );
+        // create event
+        emit PredictionMarketActive(_predictionPhrase, predictionMarketID);
+    }
+
+    function makePrediction(uint256 _predictionID, bool _prediction) public payable {
+        require(msg.value >= minPredictionValue, "must send a value greater than minPredictionValue.");
+        require(_predictionID > 0 && _predictionID <= totalPredictionMarkets.current(), "invalid prediction ID.");
+        require(predictions[_predictionID].status == Status.Active, "prediction not ACTIVE.");
+        bool _userHasPredicted = userPredictions[_predictionID][msg.sender].hasPredicted;
+        require(!_userHasPredicted, "you have already made your prediction.");
+        bool _isListed = false;
+        if(_prediction) {
+            predictions[_predictionID].yesBalance += msg.value;
+            
+            for(uint256 i = 0; i < predictions[_predictionID].yesAddresses.length; i++) {
+                if(predictions[_predictionID].yesAddresses[i] == msg.sender) {
+                    _isListed = true;
+                }
+            }
+            if(!_isListed) {
+                predictions[_predictionID].yesAddresses.push(msg.sender);
+                predictions[_predictionID].yesUserNumber++;
+                predictions[_predictionID].totalUserNumber++;
+            }
+            userPredictions[_predictionID][msg.sender] = UserPrediction(payable(msg.sender), msg.value, 0, _prediction, true);
+        } else {
+            
+            predictions[_predictionID].noBalance += msg.value;
+            for(uint256 i = 0; i < predictions[_predictionID].noAddresses.length; i++) {
+                if(predictions[_predictionID].noAddresses[i] == msg.sender) {
+                    _isListed = true;
+                }
+            }
+            if(!_isListed) {
+                predictions[_predictionID].noAddresses.push(msg.sender);
+                predictions[_predictionID].noUserNumber++;
+                predictions[_predictionID].totalUserNumber++;
+            }
+            // predictions[_predictionID].noAddresses.push(msg.sender);
+            userPredictions[_predictionID][msg.sender] = UserPrediction(payable(msg.sender), msg.value, 0, _prediction, true);
+        }
+        predictions[_predictionID].totalBalance += msg.value;
+        totalPredictionVolume += msg.value;
+        
+
+        emit PredictionMade(
+                msg.sender,
+                _predictionID,
+                msg.value,
+                predictions[_predictionID].totalBalance,
+                predictions[_predictionID].totalUserNumber,
+                totalPredictionVolume
+                );
+    }
+
+    function setllePrediction(uint256 _predictionID, bool _settlement) public payable onlyAdmin {
+        require(predictions[_predictionID].status == Status.Closed, "prediction market not closed.");
+        require(_predictionID > 0 && _predictionID <= totalPredictionMarkets.current(), "invalid prediction ID.");
+        uint256 _predictionBalance = predictions[_predictionID].totalBalance;
+        require(_predictionBalance <= (address(this).balance), "the contract doesn't have enough for payouts.");
+
+        uint256 _adminFee = calcFee(_predictionBalance, predictionMarketFee);
+        uint256 _payoutSent = 0;
+        _predictionBalance -= _adminFee;
+        admin.transfer(_adminFee);
+
+
+        if(_settlement) {
+            predictions[_predictionID].settlement = Settlement.Yes;
+            uint256 endYesBalance = predictions[_predictionID].yesBalance;
+            uint256 _usersToPay = predictions[_predictionID].yesUserNumber;
+            for(uint256 i = 0; i < _usersToPay; i++) {
+                address _currentUser = predictions[_predictionID].yesAddresses[i];
+                UserPrediction memory _user = userPredictions[_predictionID][_currentUser];
+
+                if(_user.hasPredicted && _user.prediction) {
+                    uint256 _payoutBP = (_user.predictionAmount * 10000) / endYesBalance;
+                    uint256 _payout = (_predictionBalance * _payoutBP) / 10000;
+
+                    userPredictions[_predictionID][_user.predictor].payoutAmount = _payout;
+                    _payoutSent += _payout;
+                    payable(_user.predictor).transfer(_payout);
+                }
+            }
+        } else {
+            predictions[_predictionID].settlement = Settlement.No;
+            uint256 endNoBalance = predictions[_predictionID].noBalance;
+            uint256 _usersToPay = predictions[_predictionID].noUserNumber;
+
+            for(uint256 i = 0; i < _usersToPay; i++) {
+                address _currentUser = predictions[_predictionID].noAddresses[i];
+                UserPrediction memory _user = userPredictions[_predictionID][_currentUser];
+
+                if(_user.hasPredicted && !_user.prediction) {
+                    uint256 _payoutBP = (_user.predictionAmount * 10000) / endNoBalance;
+                    uint256 _payout = (_predictionBalance * _payoutBP) / 10000;
+
+                    userPredictions[_predictionID][_user.predictor].payoutAmount = _payout;
+                    _payoutSent += _payout;
+                    payable(_user.predictor).transfer(_payout);
+                } 
+            }
+        }
+        if(_payoutSent < _predictionBalance) {
+            uint256 _remainingBal = _predictionBalance - _payoutSent;
+            if(_remainingBal > 0) {
+                admin.transfer(_remainingBal);
+            }
+        }
+        
+        predictions[_predictionID].status = Status.Settled;
+        totalClosedPredictionMarkets.decrement();
+        totalSettledPredictionMarkets.increment();
+        emit PredictionSettled(
+                _predictionID,
+                predictions[_predictionID].totalUserNumber,
+                predictions[_predictionID].totalBalance,
+                predictions[_predictionID].settlement
+            );
+    }
+
+    function closePrediction(uint256 _predictionID) public onlyAdmin {
+        require(_predictionID > 0 && _predictionID <= totalPredictionMarkets.current(), "invalid prediction ID.");
+        require(predictions[_predictionID].status == Status.Active, "prediction market not ACTIVE.");
+        predictions[_predictionID].status = Status.Closed;
+        totalActivePredictionMarkets.decrement();
+        totalClosedPredictionMarkets.increment();
+        emit PredictionClosed(_predictionID, predictions[_predictionID].totalUserNumber, predictions[_predictionID].totalBalance );
+    }
+
+    function fetchAllMarkets() public view returns (PredictionData[] memory) {
+        uint256 totalMarkets = totalPredictionMarkets.current();
+        uint256 _currentIndex = 0;
+        PredictionData[] memory _result = new PredictionData[](totalMarkets);
+        for(uint256 i = 1; i <= totalMarkets; i++) {
+            uint256 _predictionID = i;
+            PredictionData memory _currentPredictionData = predictions[_predictionID];
+            _result[_currentIndex] = _currentPredictionData;
+            _currentIndex++;
+        }
+        return _result;
+    }
+
+    function fetchAllActiveMarkets() public view returns (PredictionData[] memory) {
+        uint256 activeMarkets = totalActivePredictionMarkets.current();
+        uint256 totalMarkets = totalPredictionMarkets.current();
+        
+        uint256 _currentIndex = 0;
+        PredictionData[] memory _result = new PredictionData[](activeMarkets);
+        for(uint256 i = 1; i <= totalMarkets; i++) {
+            uint256 _predictionID = i;
+            bool _active = predictions[_predictionID].status == Status.Active;
+            if(_active) {
+                PredictionData memory _currentPredictionData = predictions[_predictionID];
+                _result[_currentIndex] = _currentPredictionData;
+                _currentIndex++;
+            }
+        }
+        return _result;
+    }
+    function fetchAllClosedMarkets() public view returns (PredictionData[] memory) {
+        uint256 totalMarkets = totalPredictionMarkets.current();
+        uint256 closedMarkets = totalClosedPredictionMarkets.current();
+        uint256 _currentIndex = 0;
+        PredictionData[] memory _result = new PredictionData[](closedMarkets);
+        for(uint256 i = 1; i <= totalMarkets; i++) {
+            uint256 _predictionID = i;
+            bool _closed = predictions[_predictionID].status == Status.Closed;
+            if(_closed) {
+                PredictionData memory _currentPredictionData = predictions[_predictionID];
+                _result[_currentIndex] = _currentPredictionData;
+                _currentIndex++;
+            }
+        }
+        return _result;
+    }
+    function fetchAllSettledMarkets() public view returns (PredictionData[] memory) {
+        uint256 totalMarkets = totalPredictionMarkets.current();
+        uint256 settledMarkets = totalSettledPredictionMarkets.current();
+        uint256 _currentIndex = 0;
+        PredictionData[] memory _result = new PredictionData[](settledMarkets);
+        for(uint256 i = 1; i <= totalMarkets; i++) {
+            uint256 _predictionID = i;
+            bool _Settled = predictions[_predictionID].status == Status.Settled;
+            if(_Settled) {
+                PredictionData memory _currentPredictionData = predictions[_predictionID];
+                _result[_currentIndex] = _currentPredictionData;
+                _currentIndex++;
+            }
+        }
+        return _result;
+    }
+
+    function updateAdmin(address _newAdmin) public onlyAdmin returns (bool){
+        admin = payable(_newAdmin);
+        return true;
+    }
+    function updatePredictionMarketFee(uint256 _newPredictionMarketFee) public onlyAdmin returns (bool){
+        predictionMarketFee = _newPredictionMarketFee;
+        return true;
+    }
+
+    function calcFee(uint256 _amountValue, uint256 _fee) internal pure returns(uint256) {
+        // require((_amountValue / 10000) * 10000 == _amountValue, "too small");
+        uint256 fee = 0;
+        if((_amountValue / 10000) * 10000 == _amountValue) {
+            _amountValue = _amountValue;
+            fee = _amountValue * _fee / 10000;
+        }
+        return fee;
+    }
+
+    function emergencyWithdrawal(uint256 _predictionID) public payable onlyAdmin {
+        require(predictions[_predictionID].status == Status.Closed, "prediction must be closed.");
+        // require(predictions[_predictionID].status != Status.Settled, "prediction market has been Settled.");
+        uint256 _yesUsersToPay = predictions[_predictionID].yesUserNumber;
+        for(uint256 i = 0; i < _yesUsersToPay; i++) {
+            address _currentUser = predictions[_predictionID].yesAddresses[i];
+            UserPrediction memory _user = userPredictions[_predictionID][_currentUser];
+            if(_user.hasPredicted && _user.prediction) {
+                _user.predictor.transfer(_user.predictionAmount);
+                userPredictions[_predictionID][_currentUser].predictionAmount = 0;
+            }
+        }
+
+        uint256 _noUsersToPay = predictions[_predictionID].noUserNumber;
+        for(uint256 i = 0; i < _noUsersToPay; i++) {
+            address _currentUser = predictions[_predictionID].noAddresses[i];
+            UserPrediction memory _user = userPredictions[_predictionID][_currentUser];
+
+            if(_user.hasPredicted && !_user.prediction) {
+                _user.predictor.transfer(_user.predictionAmount);
+                userPredictions[_predictionID][_currentUser].predictionAmount = 0;  
+            }
+        }
+
+        if(predictions[_predictionID].status == Status.Closed) {
+            totalClosedPredictionMarkets.decrement();
+        } 
+        // else if(predictions[_predictionID].status == Status.Settled) {
+        //     totalSettledPredictionMarkets.decrement();
+        // }
+        totalEmergencyWithdrawPredictionMarkets.increment();
+        totalSettledPredictionMarkets.increment();
+
+        predictions[_predictionID].status = Status.Settled;
+        predictions[_predictionID].settlement = Settlement.EmergencyWithdraw;
+
+        emit EmergencyWithdrawal(
+                _predictionID,
+                predictions[_predictionID].totalUserNumber,
+                predictions[_predictionID].totalBalance
+            );
+        // predictions[_predictionID].status = Status.EmergencyWithdraw;
+        // predictions[_predictionID].settlement = Settlement.EmergencyWithdraw;
+    }
+    
+    function userWithdraw(uint256 _predictionID) public payable {
+        require(_predictionID > 0 && _predictionID <= totalPredictionMarkets.current(), "invalid prediction ID.");
+        require(predictions[_predictionID].status == Status.Active, "prediction not ACTIVE.");
+        bool _userHasPredicted = userPredictions[_predictionID][msg.sender].hasPredicted;
+        require(_userHasPredicted, "you can only withdraw if you have made an open prediction.");
+
+        uint256 _userPredictionAmount = userPredictions[_predictionID][msg.sender].predictionAmount;
+        uint256 _userOriginalAmount = userPredictions[_predictionID][msg.sender].predictionAmount;
+        uint256 _adminFee = calcFee(_userPredictionAmount, userWithdrawADMINFee);
+        uint256 _poolFee = calcFee(_userPredictionAmount, userWithdrawPOOLFee);
+        uint256 _totalFees = _adminFee + _poolFee;
+
+        
+        
+
+        _userPredictionAmount -= _totalFees;
+
+        admin.transfer(_adminFee);
+        payable(msg.sender).transfer(_userPredictionAmount);
+
+        userPredictions[_predictionID][msg.sender].predictionAmount = 0;
+        userPredictions[_predictionID][msg.sender].hasPredicted = false;
+        uint256 _deductionFromTotalBalance = _userPredictionAmount + _adminFee;
+        predictions[_predictionID].totalBalance -= _deductionFromTotalBalance;
+
+        if(userPredictions[_predictionID][msg.sender].prediction) {
+            // predictions[_predictionID].yesBalance -= _deductionFromTotalBalance;
+            predictions[_predictionID].yesBalance -= _userOriginalAmount;
+            // predictions[_predictionID].yesUserNumber--;
+        } else {
+            // predictions[_predictionID].noBalance -= _deductionFromTotalBalance;
+            predictions[_predictionID].noBalance -= _userOriginalAmount;
+            // predictions[_predictionID].noUserNumber--;
+        }
+
+        emit UserWithdrawal(_predictionID, predictions[_predictionID].totalBalance);
+    }
+}
